@@ -2136,6 +2136,9 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 				Media_Send_KeyEvent,
 #endif
 			},
+
+			Plug_Draw_Scissor,
+			Plug_Draw_DrawTriangles,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
