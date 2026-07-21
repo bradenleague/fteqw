@@ -201,6 +201,7 @@ static qhandle_t QDECL Plug_Draw_LoadImageData(const char *name, const char *mim
 			s = R_RegisterShader(name, SUF_2D,
 				"{\n"
 					"nomipmaps\n"
+					"cull none\n"	//2d ui: no meaningful front/back face
 					"program default2d\n"
 					"{\n"
 						"map $diffuse\n"
@@ -351,9 +352,7 @@ static int QDECL Plug_Draw_DrawTriangles(const vec2_t *xy, const vec2_t *tcoords
 	mesh.indexes = plugtri_idx;
 	mesh.istrifan = false;
 
-	//2d ui geometry has no meaningful front/back face; draw two-sided so callers need
-	//not match the engine's 2d winding convention.
-	BE_DrawMesh_Single(shader, &mesh, NULL, r2d_be_flags | BEF_FORCETWOSIDED);
+	BE_DrawMesh_Single(shader, &mesh, NULL, r2d_be_flags);
 	return 1;
 }
 //x1,y1,x2,y2
