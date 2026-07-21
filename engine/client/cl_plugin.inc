@@ -193,10 +193,30 @@ static qhandle_t QDECL Plug_Draw_LoadImageData(const char *name, const char *mim
 			t = Image_CreateTexture(name, NULL, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 		if (TEXVALID(t))
 		{
+			shader_t *s;
 			Image_Upload(t, format, rgbdata, NULL, width, height, 1, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
-			ret = Plug_Draw_LoadImage(name, 3, NULL);
+			//bind the just-uploaded (premultiplied-alpha) texture to a 2d shader and return
+			//its handle. previously this returned 0 (via LoadImage(name,3)), leaving raw
+			//uploaded textures unreachable from a plugin. model: the R2D atlas shader (r_2d.c).
+			s = R_RegisterShader(name, SUF_2D,
+				"{\n"
+					"nomipmaps\n"
+					"program default2d\n"
+					"{\n"
+						"map $diffuse\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"blendfunc gl_one gl_one_minus_src_alpha\n"
+						"nodepthtest\n"
+					"}\n"
+				"}\n");
+			if (s)
+			{
+				s->defaulttextures->base = t;
+				ret = s->id+1;
+			}
 		}
-		
+
 		BZ_Free(rgbdata);
 	}
 	return ret;
@@ -331,7 +351,9 @@ static int QDECL Plug_Draw_DrawTriangles(const vec2_t *xy, const vec2_t *tcoords
 	mesh.indexes = plugtri_idx;
 	mesh.istrifan = false;
 
-	BE_DrawMesh_Single(shader, &mesh, NULL, r2d_be_flags);
+	//2d ui geometry has no meaningful front/back face; draw two-sided so callers need
+	//not match the engine's 2d winding convention.
+	BE_DrawMesh_Single(shader, &mesh, NULL, r2d_be_flags | BEF_FORCETWOSIDED);
 	return 1;
 }
 //x1,y1,x2,y2
