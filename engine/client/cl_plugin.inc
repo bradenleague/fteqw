@@ -254,6 +254,86 @@ static int QDECL Plug_Draw_Image2dQuad(const vec2_t *points, const vec2_t *texco
 	}
 	return 0;
 }
+//clip subsequent 2d drawing to a rect (virtual coords). body modeled on MN_DrawSetClipArea.
+static void QDECL Plug_Draw_Scissor(float x, float y, float w, float h, qboolean enable)
+{
+	srect_t srect;
+	if (qrenderer == QR_NONE)
+		return;
+	if (R2D_Flush)
+		R2D_Flush();
+	if (!enable)
+	{
+		BE_Scissor(NULL);
+		return;
+	}
+	srect.x = x / (float)vid.fbvwidth;
+	srect.y = y / (float)vid.fbvheight;
+	srect.width = w / (float)vid.fbvwidth;
+	srect.height = h / (float)vid.fbvheight;
+	srect.dmin = -99999;
+	srect.dmax = 99999;
+	srect.y = (1-srect.y) - srect.height;
+	BE_Scissor(&srect);
+}
+//indexed triangle list -> BE_DrawMesh_Single, bypassing the 128-vert quad batcher (model at r_2d.c R2D_ImageFlush).
+static vecV_t	*plugtri_xyz;	//scratch: positions widened vec2->vecV_t
+static index_t	*plugtri_idx;	//scratch: indices narrowed uint->engine index_t
+static size_t	 plugtri_maxverts, plugtri_maxidx;
+static int QDECL Plug_Draw_DrawTriangles(const vec2_t *xy, const vec2_t *tcoords, const vec4_t *colours, size_t numverts, const unsigned int *indexes, size_t numindexes, qhandle_t image)
+{
+	extern shader_t *shader_draw_fill_trans;
+	extern unsigned int r2d_be_flags;
+	mesh_t mesh;
+	shader_t *shader;
+	size_t i;
+
+	if (qrenderer == QR_NONE || !numverts || !numindexes)
+		return 0;
+
+	if (image > 0 && image <= r_numshaders)
+		shader = r_shaders[image-1];
+	else
+		shader = shader_draw_fill_trans;	//untextured geometry uses the standard translucent fill
+	if (!shader)
+		return 0;
+
+	if (numverts > plugtri_maxverts)
+	{
+		plugtri_maxverts = numverts;
+		plugtri_xyz = BZ_Realloc(plugtri_xyz, sizeof(*plugtri_xyz)*plugtri_maxverts);
+		memset(plugtri_xyz, 0, sizeof(*plugtri_xyz)*plugtri_maxverts);
+	}
+	if (numindexes > plugtri_maxidx)
+	{
+		plugtri_maxidx = numindexes;
+		plugtri_idx = BZ_Realloc(plugtri_idx, sizeof(*plugtri_idx)*plugtri_maxidx);
+	}
+	for (i = 0; i < numverts; i++)
+	{
+		plugtri_xyz[i][0] = xy[i][0];
+		plugtri_xyz[i][1] = xy[i][1];
+		plugtri_xyz[i][2] = 0;	//2d
+	}
+	for (i = 0; i < numindexes; i++)
+		plugtri_idx[i] = indexes[i];
+
+	//triangle lists bypass the quad batcher, so flush any pending 2d quads first
+	if (R2D_Flush)
+		R2D_Flush();
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.numvertexes = numverts;
+	mesh.numindexes = numindexes;
+	mesh.xyz_array = plugtri_xyz;
+	mesh.st_array = (vec2_t*)tcoords;
+	mesh.colors4f_array[0] = (avec4_t*)colours;
+	mesh.indexes = plugtri_idx;
+	mesh.istrifan = false;
+
+	BE_DrawMesh_Single(shader, &mesh, NULL, r2d_be_flags);
+	return 1;
+}
 //x1,y1,x2,y2
 static void QDECL Plug_Draw_Line(float x1, float y1, float x2, float y2)
 {

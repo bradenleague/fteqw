@@ -438,6 +438,12 @@ typedef struct	//for huds and menus alike
 		F(void,				GetSize,		(struct cin_s *cin, int *x, int *y, float *aspect));
 		F(void,				KeyEvent,		(struct cin_s *cin, int button, int unicode, int event));
 	} media;
+
+	//scissor: clip subsequent 2d drawing to the rect (virtual coords, matching GetVideoSize).
+	//enable==false ignores the rect and clears any clip. models MN_DrawSetClipArea/BE_Scissor.
+	F(void,		Scissor,		(float x, float y, float w, float h, qboolean enable));
+	//indexed triangle list with per-vertex uv+rgba, bypassing the quad batcher (image 0 = untextured fill).
+	F(int,		DrawTriangles,	(const vec2_t *xy, const vec2_t *tcoords, const vec4_t *colours, size_t numverts, const unsigned int *indexes, size_t numindexes, qhandle_t image));
 #define plug2dfuncs_name "2D"
 } plug2dfuncs_t;
 
