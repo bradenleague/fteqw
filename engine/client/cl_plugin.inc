@@ -44,6 +44,7 @@ static qboolean QDECL Plug_SetMenuFocus (qboolean wantkeyfocus, const char *curs
 			m->release = PlugMenu_Close;
 			m->keyevent = PlugMenu_KeyEvent;
 			m->drawmenu = PlugMenu_Draw;
+			m->showosk = true;	//plugins can't report focused text fields, so assume text input is wanted (sdl frontends deliver no text at all otherwise).
 			Menu_Push(m, false);
 		}
 	}
